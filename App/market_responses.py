@@ -167,7 +167,6 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
         "code": 200,
         "message": "OK",
         "data": data,
-        "nextToken": "",
     }
 
 
