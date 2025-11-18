@@ -87,6 +87,14 @@ MIN_SELLER_ID = 1
 MAX_SELLER_ID = 100  # mock_api_clients.seller_id 범위와 맞춰 사용
 
 
+def _round_to_100(value: int) -> int:
+    """
+    100원 단위로 내림 처리
+    예) 5,380 -> 5,300 / 12,999 -> 12,900
+    """
+    return (value // 100) * 100
+
+
 def _choose_status(platform: Platform) -> tuple[str, str]:
     """
     플랫폼별 raw / normalized 상태 1쌍 선택
@@ -231,9 +239,21 @@ def _create_mock_order(
 
     status_raw, status_normalized = _choose_status(platform)
     quantity = random.randint(1, 3)
-    product_amount = random.randint(5000, 50000)
-    shipping_fee = random.choice([0, 0, 3000])  # 무료가 조금 더 자주 나오게
-    discount_amount = random.choice([0, 0, 0, int(product_amount * 0.1)])
+
+    # ==== 100원 단위 금액 생성 ====
+    base_product_amount = random.randint(5000, 50000)
+    product_amount = _round_to_100(base_product_amount)
+
+    shipping_fee = random.choice([0, 0, 3000])  # 이미 100원 단위
+
+    # 할인도 product_amount의 10%를 기준으로 100원 단위
+    # 25% 확률로 할인, 아니면 0
+    discount_candidates: List[int] = [0, 0, 0]
+    ten_percent = int(product_amount * 0.1)
+    discount_candidates.append(_round_to_100(ten_percent))
+    discount_amount = random.choice(discount_candidates)
+
+    # 총 결제금액: 항상 100원 단위가 되도록 구성된 값들끼리 계산
     total_payment_amount = product_amount * quantity + shipping_fee - discount_amount
 
     pay_datetime = None
