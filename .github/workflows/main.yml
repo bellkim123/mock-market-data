@@ -1,0 +1,58 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main   # main 브랜치에 push 될 때마다 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          cat >> ~/.ssh/config <<EOF
+          Host ec2
+            HostName ${{ secrets.EC2_HOST }}
+            User ${{ secrets.EC2_USER }}
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Deploy to EC2
+        run: |
+          ssh ec2 'bash -s' << 'EOF'
+          set -e
+
+          # 앱 디렉토리 준비
+          mkdir -p ~/apps
+          cd ~/apps
+
+          # 처음이면 clone, 있으면 pull
+          if [ ! -d "mock-market-data" ]; then
+            git clone https://github.com/bellkim123/mock-market-data.git
+          fi
+
+          cd mock-market-data
+          git fetch origin
+          git reset --hard origin/main
+
+          # 가상환경 생성/업데이트
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
+          fi
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # 서비스 재시작
+          sudo systemctl restart mock-market-api
+          sudo systemctl status mock-market-api --no-pager
+          EOF
