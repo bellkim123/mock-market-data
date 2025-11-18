@@ -11,6 +11,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session
 # .env 로부터 환경변수 로딩
 load_dotenv()
 
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not DATABASE_URL:
