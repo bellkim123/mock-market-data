@@ -3,6 +3,6 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.12 (mock-market-api)" />
   </component>
-  <component name="KubernetesApiProvider">{}</component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (mock-market-api)" project-jdk-type="Python SDK" />
+  <component name="KubernetesApiProvider"><![CDATA[{}]]></component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.9 (mock-market-data)" project-jdk-type="Python SDK" />
 </project>

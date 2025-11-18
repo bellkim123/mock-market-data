@@ -28,6 +28,8 @@ def _krw(amount: int | None) -> dict | None:
 def to_smartstore_response(orders: List[MockMarketOrder]) -> dict:
     """
     네이버 스마트스토어 스타일 간단 버전
+    - 상태값: 원본(raw) 그대로 사용 (o.status_raw)
+    - 배송사 / 기타 필드: 가능하면 기본값/더미값 채워서 반환
     """
     return {
         "code": 200,
@@ -37,9 +39,9 @@ def to_smartstore_response(orders: List[MockMarketOrder]) -> dict:
                 "order": {
                     "orderId": o.external_order_id,
                     "orderDate": o.order_datetime.isoformat(),
-                    "ordererId": o.buyer_id,
-                    "ordererName": o.buyer_name,
-                    "ordererTel": o.buyer_tel,
+                    "ordererId": o.buyer_id or "",
+                    "ordererName": o.buyer_name or "",
+                    "ordererTel": o.buyer_tel or "",
                     "orderDiscountAmount": o.discount_amount or 0,
                     "generalPaymentAmount": o.total_payment_amount or 0,
                 },
@@ -53,8 +55,8 @@ def to_smartstore_response(orders: List[MockMarketOrder]) -> dict:
                 },
                 "delivery": {
                     "deliveredDate": (o.pay_datetime or o.order_datetime).isoformat(),
-                    "deliveryCompany": o.delivery_company,
-                    "trackingNumber": o.tracking_number,
+                    "deliveryCompany": o.delivery_company or "",
+                    "trackingNumber": o.tracking_number or "",
                 },
             }
             for o in orders
@@ -67,13 +69,14 @@ def to_smartstore_response(orders: List[MockMarketOrder]) -> dict:
 
 def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
     """
-    질문에서 주신 쿠팡 발주서 조회 응답 구조에 맞춰 구성한 mock 응답
-    (실제 스펙의 서브셋 + 기본값/더미값 섞어서 반환)
+    쿠팡 발주서 조회 응답 구조 기반 mock
+    - 상태값: status_raw 그대로 사용
+    - Money 타입: _krw()로 통일
+    - 나머지 보조 필드: 기본값/더미값 가급적 채워서 반환
     """
     data: List[dict] = []
 
     for o in orders:
-        # shipmentBoxId, orderId는 numeric이 아닐 수도 있으므로 안전하게 처리
         def _to_int_or_none(value: str | None):
             if value is None:
                 return None
@@ -81,27 +84,29 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
             return int(v) if v.isdigit() else None
 
         shipment = {
-            "shipmentBoxId": _to_int_or_none(o.external_order_id) or o.mock_order_item_id,
+            "shipmentBoxId": _to_int_or_none(o.external_order_id) or int(
+                o.mock_order_item_id
+            ),
             "orderId": _to_int_or_none(o.external_order_id),
             "orderedAt": o.order_datetime.isoformat(),
             "orderer": {
                 "name": o.buyer_name or "",
                 "email": o.buyer_email or "",
                 "safeNumber": o.buyer_tel or "",
-                "ordererNumber": None,  # 별도 컬럼 없음
+                "ordererNumber": "",
             },
             "paidAt": (o.pay_datetime or o.order_datetime).isoformat(),
-            "status": o.status_normalized or o.status_raw,
+            "status": o.status_raw,
             "shippingPrice": _krw(o.shipping_fee or 0),
-            "remotePrice": None,
+            "remotePrice": _krw(0),
             "remoteArea": False,
             "parcelPrintMessage": o.memo or "",
             "splitShipping": False,
             "ableSplitShipping": False,
             "receiver": {
-                "name": o.receiver_name or (o.buyer_name or ""),
+                "name": (o.receiver_name or o.buyer_name) or "",
                 "safeNumber": o.receiver_tel or "",
-                "receiverNumber": None,
+                "receiverNumber": "",
                 "addr1": o.receiver_address1 or "",
                 "addr2": o.receiver_address2 or "",
                 "postCode": o.receiver_zipcode or "",
@@ -110,8 +115,8 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
                 {
                     "vendorItemPackageId": 0,
                     "vendorItemPackageName": o.shop_name or "",
-                    "productId": 0,  # 별도 productId 컬럼 없음
-                    "vendorItemId": o.mock_order_item_id,
+                    "productId": 0,  # 별도 productId 없음 → 0
+                    "vendorItemId": int(o.mock_order_item_id),
                     "vendorItemName": o.shop_name or "",
                     "shippingCount": o.quantity,
                     "salesPrice": _krw(o.product_amount or 0),
@@ -121,8 +126,8 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
                     "downloadableCouponDiscount": _krw(0),
                     "coupangDiscount": _krw(0),
                     "externalVendorSkuCode": o.shop_id or "",
-                    "etcInfoHeader": None,
-                    "etcInfoValue": None,
+                    "etcInfoHeader": "",
+                    "etcInfoValue": "",
                     "etcInfoValues": [],
                     "sellerProductId": 0,
                     "sellerProductName": o.shop_name or "",
@@ -137,9 +142,9 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
                     "pricingBadge": False,
                     "usedProduct": False,
                     "confirmDate": (o.pay_datetime or o.order_datetime).isoformat(),
-                    "deliveryChargeTypeName": "유료"
-                    if (o.shipping_fee or 0) > 0
-                    else "무료",
+                    "deliveryChargeTypeName": (
+                        "유료" if (o.shipping_fee or 0) > 0 else "무료"
+                    ),
                     "canceled": False,
                 }
             ],
@@ -172,6 +177,8 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
 def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
     """
     지그재그 스타일 간단 mock
+    - 상태값: raw 그대로
+    - 문자열/숫자 필드는 가능하면 기본값 채움
     """
     return {
         "code": 200,
@@ -182,12 +189,12 @@ def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
                 "order": {
                     "order_number": o.external_order_id,
                     "orderer": {
-                        "name": o.buyer_name,
-                        "email": o.buyer_email,
+                        "name": o.buyer_name or "",
+                        "email": o.buyer_email or "",
                     },
                 },
                 "receiver": {
-                    "name": o.receiver_name or o.buyer_name,
+                    "name": (o.receiver_name or o.buyer_name) or "",
                 },
                 "date_created": int(o.order_datetime.timestamp() * 1000),
                 "status": o.status_raw,
@@ -197,7 +204,7 @@ def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
                 },
                 "quantity": o.quantity,
                 "total_amount": o.total_payment_amount or 0,
-                "shop_name": o.shop_name,
+                "shop_name": o.shop_name or "",
                 "payment_amount": {
                     "coupon_discount_amount": o.discount_amount or 0,
                 },
@@ -213,6 +220,8 @@ def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
 def to_ably_response(orders: List[MockMarketOrder]) -> dict:
     """
     에이블리 스타일 간단 mock
+    - 상태값: raw 그대로
+    - 문자열/숫자 기본값 채움
     """
     return {
         "code": 200,
@@ -224,17 +233,17 @@ def to_ably_response(orders: List[MockMarketOrder]) -> dict:
                 "ea": o.quantity,
                 "status": o.status_raw,
                 "ordered_at": o.order_datetime.strftime("%Y-%m-%d %H:%M"),
-                "buyer_name": o.buyer_name,
-                "buyer_tel": o.buyer_tel,
-                "buyer_email": o.buyer_email,
+                "buyer_name": o.buyer_name or "",
+                "buyer_tel": o.buyer_tel or "",
+                "buyer_email": o.buyer_email or "",
                 "goods_name": o.shop_name or "",
-                "pay_method_name": o.pay_method,
-                "receiver_name": o.receiver_name,
-                "receiver_tel": o.receiver_tel,
-                "receiver_addr": (o.receiver_address1 or "")
-                + " "
-                + (o.receiver_address2 or ""),
-                "receiver_postcode": o.receiver_zipcode,
+                "pay_method_name": o.pay_method or "",
+                "receiver_name": (o.receiver_name or o.buyer_name) or "",
+                "receiver_tel": o.receiver_tel or "",
+                "receiver_addr": (
+                    (o.receiver_address1 or "") + " " + (o.receiver_address2 or "")
+                ).strip(),
+                "receiver_postcode": o.receiver_zipcode or "",
                 "price": o.product_amount or 0,
                 "delivery_amount": o.shipping_fee or 0,
                 "amount": o.total_payment_amount or 0,
@@ -242,6 +251,9 @@ def to_ably_response(orders: List[MockMarketOrder]) -> dict:
             for o in orders
         ],
     }
+
+
+# ========== 공통 Dispatcher ==========
 
 
 def to_platform_response(platform: Platform, orders: List[MockMarketOrder]) -> dict:
@@ -253,4 +265,9 @@ def to_platform_response(platform: Platform, orders: List[MockMarketOrder]) -> d
         return to_zigzag_response(orders)
     if platform == Platform.ABLY:
         return to_ably_response(orders)
-    return {"code": 400, "message": "unsupported platform", "data": []}
+
+    return {
+        "code": 400,
+        "message": "unsupported platform",
+        "data": [],
+    }
