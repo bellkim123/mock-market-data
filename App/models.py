@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     DateTime,
     Text,
+    Boolean,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,6 +24,38 @@ class Platform(str, PyEnum):
     ABLY = "ABLY"
 
 
+class MockApiClient(Base):
+    """
+    mock_api_clients 테이블 매핑
+    """
+
+    __tablename__ = "mock_api_clients"
+
+    api_client_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+
+    seller_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    seller_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    api_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    rate_limit_per_min: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
 class MockMarketOrder(Base):
     """
     mock_market_orders 테이블 매핑
@@ -34,6 +67,9 @@ class MockMarketOrder(Base):
     mock_order_item_id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
     )
+
+    # seller_id INT NOT NULL
+    seller_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # platform varchar(20)
     platform: Mapped[str] = mapped_column(String(20), nullable=False, index=True)

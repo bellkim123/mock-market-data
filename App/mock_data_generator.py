@@ -76,7 +76,15 @@ PLATFORM_DELIVERY_COMPANIES: dict[Platform, List[tuple[str, str]]] = {
 BUYER_NAMES = ["김철수", "이영희", "박민수", "정유진", "홍길동"]
 SHOP_NAMES = ["위시어스", "팔랑샵", "데일리룩", "커피굿즈샵"]
 PAY_METHODS = ["CARD", "KAKAO_PAY", "NAVER_PAY", "TOSS_PAY", "무통장입금"]
-MEMOS = ["문 앞에 두고 가주세요.", "경비실에 맡겨주세요.", "부재 시 연락 부탁드립니다.", "빠른 배송 부탁드려요."]
+MEMOS = [
+    "문 앞에 두고 가주세요.",
+    "경비실에 맡겨주세요.",
+    "부재 시 연락 부탁드립니다.",
+    "빠른 배송 부탁드려요.",
+]
+
+MIN_SELLER_ID = 1
+MAX_SELLER_ID = 100  # mock_api_clients.seller_id 범위와 맞춰 사용
 
 
 def _choose_status(platform: Platform) -> tuple[str, str]:
@@ -110,18 +118,22 @@ def _choose_delivery_company(platform: Platform) -> tuple[str, str]:
     return random.choice(candidates)
 
 
-def _generate_external_ids(platform: Platform, base_dt: datetime, seq: int) -> tuple[str, str]:
+def _generate_external_ids(
+    platform: Platform,
+    base_dt: datetime,
+    seq: int,
+) -> tuple[str, str]:
     """
     플랫폼별 주문번호/주문아이템번호 포맷을 적당히 다르게 생성
     """
     ymdh = base_dt.strftime("%Y%m%d%H")
 
     if platform == Platform.COUPANG:
-        order_id = f"2{ymdh}{seq:04d}"        # 예: 2202510180001
-        item_id = f"{order_id}{seq:02d}"      # 예: 220251018000101
+        order_id = f"2{ymdh}{seq:04d}"  # 예: 2202510180001
+        item_id = f"{order_id}{seq:02d}"  # 예: 220251018000101
     elif platform == Platform.SMARTSTORE:
-        order_id = f"{ymdh}-{seq:04d}"        # 예: 20251018-0001
-        item_id = f"{order_id}-P{seq:02d}"    # 예: 20251018-0001-P01
+        order_id = f"{ymdh}-{seq:04d}"  # 예: 20251018-0001
+        item_id = f"{order_id}-P{seq:02d}"  # 예: 20251018-0001-P01
     elif platform == Platform.ZIGZAG:
         order_id = f"ZZ{ymdh}{seq:04d}"
         item_id = f"ZZIT{ymdh}{seq:06d}"
@@ -190,7 +202,9 @@ def _build_raw_payload(platform: Platform, order_dict: dict) -> str:
         },
         "meta": {
             "order_datetime": order_dict["order_datetime"].isoformat(),
-            "pay_datetime": order_dict["pay_datetime"].isoformat() if order_dict["pay_datetime"] else None,
+            "pay_datetime": order_dict["pay_datetime"].isoformat()
+            if order_dict["pay_datetime"]
+            else None,
             "country": order_dict["country"],
             "memo": order_dict["memo"],
         },
@@ -204,6 +218,7 @@ def _create_mock_order(
     platform: Platform,
     order_datetime: datetime,
     global_seq: int,
+    seller_id: int,
 ) -> MockMarketOrder:
     """
     한 건의 MockMarketOrder 인스턴스를 생성해서 세션에 add
@@ -224,19 +239,28 @@ def _create_mock_order(
     pay_datetime = None
     if status_normalized in ("PAID", "PREPARING_SHIPMENT", "SHIPPED", "DELIVERED"):
         # 주문 0~120분 사이에 결제된 것으로
-        pay_datetime = order_datetime + timedelta(minutes=random.randint(0, 120))
+        pay_datetime = order_datetime + timedelta(
+            minutes=random.randint(0, 120)
+        )
 
     # 플랫폼별 택배사/코드, 아직 출고 전이면 비워둘 수도 있음
     delivery_company = None
     delivery_company_code = None
     tracking_number = None
     if status_normalized in ("SHIPPED", "DELIVERED"):
-        delivery_company, delivery_company_code = _choose_delivery_company(platform)
-        tracking_number = _generate_tracking_number(platform, order_datetime, global_seq)
+        delivery_company, delivery_company_code = _choose_delivery_company(
+            platform
+        )
+        tracking_number = _generate_tracking_number(
+            platform, order_datetime, global_seq
+        )
 
-    external_order_id, external_order_item_id = _generate_external_ids(platform, order_datetime, global_seq)
+    external_order_id, external_order_item_id = _generate_external_ids(
+        platform, order_datetime, global_seq
+    )
 
     order_dict = {
+        "seller_id": seller_id,
         "platform": platform.value,
         "external_order_id": external_order_id,
         "external_order_item_id": external_order_item_id,
@@ -272,6 +296,7 @@ def _create_mock_order(
     raw_payload = _build_raw_payload(platform, order_dict)
 
     order = MockMarketOrder(
+        seller_id=order_dict["seller_id"],
         platform=order_dict["platform"],
         external_order_id=order_dict["external_order_id"],
         external_order_item_id=order_dict["external_order_item_id"],
@@ -316,7 +341,7 @@ def generate_initial_mock_data(
     db: Session,
     start_date: date,
     end_date: date,
-    orders_per_hour_per_platform: int = 3,
+    orders_per_hour_per_platform: int = 10,
     seed: int | None = 42,
 ) -> int:
     """
@@ -324,6 +349,7 @@ def generate_initial_mock_data(
     - 모든 플랫폼별로
     - 시간 단위로
     - orders_per_hour_per_platform 개씩 주문 생성
+    - 각 주문은 seller_id (1~100) 중 랜덤 한 셀러에 귀속
     """
     if seed is not None:
         random.seed(seed)
@@ -343,7 +369,8 @@ def generate_initial_mock_data(
             for _ in range(orders_per_hour_per_platform):
                 minute_offset = random.randint(0, 59)
                 order_dt = current + timedelta(minutes=minute_offset)
-                _create_mock_order(db, platform, order_dt, global_seq)
+                seller_id = random.randint(MIN_SELLER_ID, MAX_SELLER_ID)
+                _create_mock_order(db, platform, order_dt, global_seq, seller_id)
                 global_seq += 1
                 inserted += 1
 
@@ -364,6 +391,7 @@ def generate_hourly_new_orders(
     """
     target_hour 기준 한 시간 구간에 대해, 각 플랫폼마다 orders_per_platform 개 생성
     - target_hour가 None이면 현재 시각의 "해당 시간"으로 처리
+    - 각 주문은 seller_id (1~100) 중 랜덤 한 셀러에 귀속
     """
     if target_hour is None:
         now = datetime.utcnow()
@@ -379,7 +407,8 @@ def generate_hourly_new_orders(
         for _ in range(orders_per_platform):
             minute_offset = random.randint(0, 59)
             order_dt = start_dt + timedelta(minutes=minute_offset)
-            _create_mock_order(db, platform, order_dt, global_seq)
+            seller_id = random.randint(MIN_SELLER_ID, MAX_SELLER_ID)
+            _create_mock_order(db, platform, order_dt, global_seq, seller_id)
             global_seq += 1
             inserted += 1
 
@@ -400,7 +429,11 @@ def progress_order_statuses(
     """
     candidates: List[MockMarketOrder] = (
         db.query(MockMarketOrder)
-        .filter(MockMarketOrder.status_normalized.in_(list(NORMALIZED_STATUS_FLOW.keys())))
+        .filter(
+            MockMarketOrder.status_normalized.in_(
+                list(NORMALIZED_STATUS_FLOW.keys())
+            )
+        )
         .order_by(MockMarketOrder.order_datetime)
         .limit(max_rows)
         .all()
@@ -425,8 +458,15 @@ def progress_order_statuses(
         order.status_normalized = next_norm
 
         # 결제 일시 없으면 채워주기
-        if not order.pay_datetime and next_norm in ("PAID", "PREPARING_SHIPMENT", "SHIPPED", "DELIVERED"):
-            order.pay_datetime = order.order_datetime + timedelta(minutes=random.randint(0, 120))
+        if not order.pay_datetime and next_norm in (
+            "PAID",
+            "PREPARING_SHIPMENT",
+            "SHIPPED",
+            "DELIVERED",
+        ):
+            order.pay_datetime = order.order_datetime + timedelta(
+                minutes=random.randint(0, 120)
+            )
 
         # 배송 단계라면 택배사/송장 보정
         if next_norm in ("SHIPPED", "DELIVERED"):
@@ -435,7 +475,11 @@ def progress_order_statuses(
                 order.delivery_company = company
                 order.delivery_company_code = code
             if not order.tracking_number:
-                order.tracking_number = _generate_tracking_number(platform, order.order_datetime, order.mock_order_item_id or 0)
+                order.tracking_number = _generate_tracking_number(
+                    platform,
+                    order.order_datetime,
+                    order.mock_order_item_id or 0,
+                )
 
         # raw_payload는 여기서는 그대로 두고, 필요하면 나중에 regenerate 로직 추가
         updated += 1
@@ -454,7 +498,9 @@ if __name__ == "__main__":
     from .database import SessionLocal
 
     parser = ArgumentParser(description="Mock market orders generator")
-    parser.add_argument("--mode", choices=["initial", "hourly-insert", "hourly-update"], required=True)
+    parser.add_argument(
+        "--mode", choices=["initial", "hourly-insert", "hourly-update"], required=True
+    )
     args = parser.parse_args()
 
     db = SessionLocal()
