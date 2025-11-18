@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Text,
     Boolean,
+    text,  # ✅ DB 기본값/ON UPDATE용
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,14 +46,17 @@ class MockApiClient(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # ✅ DB CURRENT_TIMESTAMP 사용 (애플리케이션에서 값 안 넣음)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime,
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+        server_onupdate=text("CURRENT_TIMESTAMP"),
     )
 
 
@@ -133,12 +137,15 @@ class MockMarketOrder(Base):
     # 원본 JSON (longtext, json_valid 체크)
     raw_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # ✅ 여기서도 DB CURRENT_TIMESTAMP 사용
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime,
+        nullable=False,
+        server_default=text("CURRENT_TIMESTAMP"),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        server_default=text("CURRENT_TIMESTAMP"),
+        server_onupdate=text("CURRENT_TIMESTAMP"),
     )

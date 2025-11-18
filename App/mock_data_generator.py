@@ -394,7 +394,7 @@ def generate_hourly_new_orders(
     - 각 주문은 seller_id (1~100) 중 랜덤 한 셀러에 귀속
     """
     if target_hour is None:
-        now = datetime.utcnow()
+        now = datetime.now()
         target_hour = now.replace(minute=0, second=0, microsecond=0)
 
     start_dt = target_hour
