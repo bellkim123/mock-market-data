@@ -1,4 +1,3 @@
-# App/schemas.py
 from __future__ import annotations
 
 from datetime import datetime
@@ -572,6 +571,31 @@ class ZigzagResultItem(BaseModel):
         ...,
         description="결제 금액 상세 정보",
     )
+    delivery_company: str = Field(
+        ...,
+        description=(
+            "택배사 이름 (generator 기준)\n"
+            "- 예:\n"
+            "  - 로젠택배\n"
+            "  - CJ대한통운"
+        ),
+        example="CJ대한통운",
+    )
+    delivery_company_code: str = Field(
+        ...,
+        description=(
+            "택배사 코드 (generator 기준)\n"
+            "- 예:\n"
+            "  - LOGEN_ZZ\n"
+            "  - CJ_ZZ"
+        ),
+        example="CJ_ZZ",
+    )
+    tracking_number: str = Field(
+        ...,
+        description="운송장 번호 (출고 전이면 빈 문자열)",
+        example="ZZ1020XXXXXXX",
+    )
 
 
 class ZigzagOrdersResponse(BaseModel):
@@ -618,6 +642,9 @@ class ZigzagOrdersResponse(BaseModel):
                         "payment_amount": {
                             "coupon_discount_amount": 0,
                         },
+                        "delivery_company": "CJ대한통운",
+                        "delivery_company_code": "CJ_ZZ",
+                        "tracking_number": "ZZ1020XXXXXXX",
                     }
                 ],
             }
@@ -727,6 +754,31 @@ class AblyOrderItem(BaseModel):
         description="총 결제 금액 (상품가 * 수량 + 배송비 - 할인, 100원 단위)",
         example=90000,
     )
+    delivery_company: str = Field(
+        ...,
+        description=(
+            "택배사 이름 (generator 기준)\n"
+            "- 예:\n"
+            "  - 우체국택배\n"
+            "  - CJ대한통운"
+        ),
+        example="CJ대한통운",
+    )
+    delivery_company_code: str = Field(
+        ...,
+        description=(
+            "택배사 코드 (generator 기준)\n"
+            "- 예:\n"
+            "  - KOREAPOST_AB\n"
+            "  - CJ_AB"
+        ),
+        example="CJ_AB",
+    )
+    invoice_no: str = Field(
+        ...,
+        description="운송장 번호 (출고 전이면 빈 문자열)",
+        example="AB1020XXXXXXX",
+    )
 
 
 class AblyOrdersResponse(BaseModel):
@@ -769,6 +821,9 @@ class AblyOrdersResponse(BaseModel):
                         "price": 30000,
                         "delivery_amount": 0,
                         "amount": 90000,
+                        "delivery_company": "CJ대한통운",
+                        "delivery_company_code": "CJ_AB",
+                        "invoice_no": "AB1020XXXXXXX",
                     }
                 ],
             }

@@ -1,5 +1,3 @@
-# App/market_responses.py
-
 from __future__ import annotations
 
 from typing import List
@@ -131,7 +129,6 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
             ],
 
             # ===== 배송사/송장 정보 =====
-            # - 쿠팡 로지스틱스 (CPLG) / CJ대한통운 (CJP) 등은 generator 기준 설명을 Swagger에서 제공
             "deliveryCompanyName": o.delivery_company or "",
             "invoiceNumber": o.tracking_number or "",
             "deliveredDate": (o.pay_datetime or o.order_datetime).isoformat(),
@@ -154,6 +151,7 @@ def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
     지그재그 스타일 간단 mock
     - 상태값: raw 그대로
     - 문자열/숫자 필드는 가능하면 기본값 채움
+    - 배송정보: delivery_company / delivery_company_code / tracking_number 포함
     """
     return {
         "code": 200,
@@ -183,6 +181,11 @@ def to_zigzag_response(orders: List[MockMarketOrder]) -> dict:
                 "payment_amount": {
                     "coupon_discount_amount": o.discount_amount or 0,
                 },
+
+                # ===== 배송정보 추가 =====
+                "delivery_company": o.delivery_company or "",
+                "delivery_company_code": o.delivery_company_code or "",
+                "tracking_number": o.tracking_number or "",
             }
             for o in orders
         ],
@@ -197,6 +200,7 @@ def to_ably_response(orders: List[MockMarketOrder]) -> dict:
     에이블리 스타일 간단 mock
     - 상태값: raw 그대로
     - 문자열/숫자 기본값 채움
+    - 배송정보: delivery_company / delivery_company_code / invoice_no 포함
     """
     return {
         "code": 200,
@@ -222,6 +226,11 @@ def to_ably_response(orders: List[MockMarketOrder]) -> dict:
                 "price": o.product_amount or 0,
                 "delivery_amount": o.shipping_fee or 0,
                 "amount": o.total_payment_amount or 0,
+
+                # ===== 배송정보 추가 =====
+                "delivery_company": o.delivery_company or "",
+                "delivery_company_code": o.delivery_company_code or "",
+                "invoice_no": o.tracking_number or "",
             }
             for o in orders
         ],
