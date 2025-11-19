@@ -109,14 +109,13 @@ class SmartstoreProductOrder(BaseModel):
     productOrderStatus: str = Field(
         ...,
         description=(
-            "상품 상태 원본값\n"
-            "- 공통 정규화 상태: PAID / PREPARING_SHIPMENT / SHIPPED / DELIVERED / CANCELLED\n"
-            "- Smartstore 원본 상태값 목록:\n"
-            "  - 결제완료 (PAID)\n"
-            "  - 상품준비중 (PREPARING_SHIPMENT)\n"
-            "  - 배송중 (SHIPPED)\n"
-            "  - 배송완료, 구매확정 (DELIVERED)\n"
-            "  - 주문취소, 결제취소 (CANCELLED)"
+            "스마트스토어 상품 상태 원본값\n"
+            "- 사용 가능한 값 예시:\n"
+            "  - 결제완료\n"
+            "  - 상품준비중\n"
+            "  - 배송중\n"
+            "  - 배송완료, 구매확정\n"
+            "  - 주문취소, 결제취소"
         ),
         example="배송중",
     )
@@ -208,7 +207,7 @@ class SmartstoreOrdersResponse(BaseModel):
 
 
 # =========================================================
-# COUPANG 응답 스키마
+# COUPANG 응답 스키마 (라이트 버전)
 # =========================================================
 
 class CoupangMoney(BaseModel):
@@ -242,13 +241,8 @@ class CoupangOrderer(BaseModel):
     )
     safeNumber: str = Field(
         ...,
-        description="안심번호",
+        description="주문자 안심번호",
         example="010-3061-6823",
-    )
-    ordererNumber: str = Field(
-        ...,
-        description="주문자 일반 전화번호 (없을 수 있음)",
-        example="",
     )
 
 
@@ -262,11 +256,6 @@ class CoupangReceiver(BaseModel):
         ...,
         description="수령인 안심번호",
         example="010-4702-3473",
-    )
-    receiverNumber: str = Field(
-        ...,
-        description="수령인 일반 전화번호 (없을 수 있음)",
-        example="",
     )
     addr1: str = Field(
         ...,
@@ -286,34 +275,24 @@ class CoupangReceiver(BaseModel):
 
 
 class CoupangOrderItem(BaseModel):
-    vendorItemPackageId: int = Field(
-        ...,
-        description="쿠팡 Vendor Item 패키지 ID (없으면 0)",
-        example=0,
-    )
-    vendorItemPackageName: str = Field(
-        ...,
-        description="Vendor Item 패키지명",
-        example="팔랑샵",
-    )
-    productId: int = Field(
-        ...,
-        description="쿠팡 상품 ID (모의 데이터에서는 0 사용)",
-        example=0,
-    )
     vendorItemId: int = Field(
         ...,
-        description="Vendor Item ID",
+        description="Vendor Item ID (모의 데이터에서는 mock_order_item_id 사용)",
         example=9339,
     )
     vendorItemName: str = Field(
         ...,
-        description="Vendor Item 이름",
+        description="Vendor Item 이름 (보통 상품명)",
         example="팔랑샵",
     )
-    shippingCount: int = Field(
+    externalVendorSkuCode: str = Field(
         ...,
-        description="배송 수량 (박스 수 등)",
+        description="외부 시스템에서 사용하는 SKU 코드",
+        example="SHOP-CO-023",
+    )
+    quantity: int = Field(
+        ...,
+        description="주문 수량",
         example=3,
     )
     salesPrice: CoupangMoney = Field(
@@ -326,171 +305,41 @@ class CoupangOrderItem(BaseModel):
     )
     discountPrice: CoupangMoney = Field(
         ...,
-        description="즉시할인/쿠폰 등 할인 금액",
-    )
-    instantCouponDiscount: CoupangMoney = Field(
-        ...,
-        description="즉시 쿠폰 할인 금액",
-    )
-    downloadableCouponDiscount: CoupangMoney = Field(
-        ...,
-        description="다운로드 쿠폰 할인 금액",
-    )
-    coupangDiscount: CoupangMoney = Field(
-        ...,
-        description="쿠팡 자체 할인 금액",
-    )
-    externalVendorSkuCode: str = Field(
-        ...,
-        description="외부 시스템에서 사용하는 SKU 코드",
-        example="SHOP-CO-023",
-    )
-    etcInfoHeader: str = Field(
-        ...,
-        description="기타 옵션 헤더",
-        example="",
-    )
-    etcInfoValue: str = Field(
-        ...,
-        description="기타 옵션 값",
-        example="",
-    )
-    etcInfoValues: List[str] = Field(
-        ...,
-        description="기타 옵션 값 리스트",
-        example=[],
-    )
-    sellerProductId: int = Field(
-        ...,
-        description="셀러 상품 ID (없으면 0)",
-        example=0,
-    )
-    sellerProductName: str = Field(
-        ...,
-        description="셀러 상품명",
-        example="팔랑샵",
-    )
-    sellerProductItemName: str = Field(
-        ...,
-        description="셀러 상품 아이템명",
-        example="팔랑샵",
-    )
-    firstSellerProductItemName: str = Field(
-        ...,
-        description="첫 번째 셀러 상품 아이템명",
-        example="팔랑샵",
-    )
-    cancelCount: int = Field(
-        ...,
-        description="취소 수량",
-        example=0,
-    )
-    holdCountForCancel: int = Field(
-        ...,
-        description="취소 대기 수량",
-        example=0,
-    )
-    estimatedShippingDate: str = Field(
-        ...,
-        description="예상 발송 일자 (YYYY-MM-DD)",
-        example="2025-10-01",
-    )
-    plannedShippingDate: str = Field(
-        ...,
-        description="계획 발송 일자 (없는 경우 빈 문자열)",
-        example="",
-    )
-    invoiceNumberUploadDate: str = Field(
-        ...,
-        description="송장번호 업로드 일시",
-        example="",
-    )
-    extraProperties: dict = Field(
-        ...,
-        description="기타 속성 키-값",
-        example={},
-    )
-    pricingBadge: bool = Field(
-        ...,
-        description="특가/뱃지 여부",
-        example=False,
-    )
-    usedProduct: bool = Field(
-        ...,
-        description="중고상품 여부",
-        example=False,
-    )
-    confirmDate: str = Field(
-        ...,
-        description="구매 확정 일시 (YYYY-MM-DDThh:mm:ss)",
-        example="2025-10-02T00:32:00",
-    )
-    deliveryChargeTypeName: str = Field(
-        ...,
-        description="배송비 유형명 (예: 무료, 조건부무료 등)",
-        example="무료",
-    )
-    canceled: bool = Field(
-        ...,
-        description="해당 상품이 취소되었는지 여부",
-        example=False,
-    )
-
-
-class CoupangOverseaInfo(BaseModel):
-    personalCustomsClearanceCode: str = Field(
-        ...,
-        description="개인 통관 고유부호",
-        example="",
-    )
-    ordererSsn: str = Field(
-        ...,
-        description="주문자 주민등록번호 (사용하지 않음)",
-        example="",
-    )
-    ordererPhoneNumber: str = Field(
-        ...,
-        description="주문자 전화번호 (해외배송용)",
-        example="",
+        description="해당 상품에 적용된 할인 금액",
     )
 
 
 class CoupangShipment(BaseModel):
     shipmentBoxId: int = Field(
         ...,
-        description="쿠팡 배송박스 ID",
+        description="쿠팡 배송박스 ID (mock_order_item_id 기반)",
         example=220251001239327,
     )
     orderId: Optional[int] = Field(
         ...,
-        description="쿠팡 주문 ID",
+        description="쿠팡 주문 ID (숫자로 변환 가능하면 사용, 아니면 null)",
         example=220251001239327,
     )
     orderedAt: str = Field(
         ...,
-        description="주문 일시 (쿠팡 포맷, ISO8601)",
+        description="주문 일시 (ISO8601 문자열)",
         example="2025-10-01T23:46:00",
-    )
-    orderer: CoupangOrderer = Field(
-        ...,
-        description="주문자 정보",
     )
     paidAt: str = Field(
         ...,
-        description="결제 완료 일시",
+        description="결제 완료 일시 (ISO8601 문자열)",
         example="2025-10-02T00:32:00",
     )
     status: str = Field(
         ...,
         description=(
-            "쿠팡 배송/주문 상태 (원본값)\n"
-            "- 공통 정규화 상태: PAID / PREPARING_SHIPMENT / SHIPPED / DELIVERED / CANCELLED\n"
-            "- Coupang 원본 상태값 목록:\n"
-            "  - ACCEPT (PAID)\n"
-            "  - INSTRUCT (PREPARING_SHIPMENT)\n"
-            "  - IN_DELIVERY (SHIPPED)\n"
-            "  - FINAL_DELIVERY (DELIVERED)\n"
-            "  - CANCELED (CANCELLED)"
+            "쿠팡 주문/배송 상태 원본값\n"
+            "- 사용 가능한 값 예시:\n"
+            "  - ACCEPT: 결제완료\n"
+            "  - INSTRUCT: 출고지시(상품준비중)\n"
+            "  - IN_DELIVERY: 배송중\n"
+            "  - FINAL_DELIVERY: 배송완료/구매확정\n"
+            "  - CANCELED: 주문취소"
         ),
         example="ACCEPT",
     )
@@ -498,29 +347,9 @@ class CoupangShipment(BaseModel):
         ...,
         description="배송비 금액",
     )
-    remotePrice: CoupangMoney = Field(
+    orderer: CoupangOrderer = Field(
         ...,
-        description="도서/산간 추가 배송비 금액",
-    )
-    remoteArea: bool = Field(
-        ...,
-        description="도서산간 지역 여부",
-        example=False,
-    )
-    parcelPrintMessage: str = Field(
-        ...,
-        description="송장 출력 메모",
-        example="빠른 배송 부탁드려요.",
-    )
-    splitShipping: bool = Field(
-        ...,
-        description="분할배송 여부",
-        example=False,
-    )
-    ableSplitShipping: bool = Field(
-        ...,
-        description="분할배송 가능 여부",
-        example=False,
+        description="주문자 정보",
     )
     receiver: CoupangReceiver = Field(
         ...,
@@ -530,45 +359,26 @@ class CoupangShipment(BaseModel):
         ...,
         description="주문 상품 리스트",
     )
-    overseaShippingInfoDto: CoupangOverseaInfo = Field(
-        ...,
-        description="해외 배송 추가 정보",
-    )
     deliveryCompanyName: str = Field(
         ...,
         description=(
             "배송사 이름\n"
-            "- 사용 가능한 값:\n"
-            "  - 쿠팡로지스틱스 (코드: CPLG)\n"
-            "  - CJ대한통운 (코드: CJP)\n"
+            "- 사용 가능한 값 예시 (generator 기준):\n"
+            "  - 쿠팡로지스틱스\n"
+            "  - CJ대한통운\n"
             "※ 아직 출고 전이면 빈 문자열"
         ),
-        example="",
+        example="쿠팡로지스틱스",
     )
     invoiceNumber: str = Field(
         ...,
         description="운송장 번호 (출고 전이면 빈 문자열)",
-        example="",
-    )
-    inTrasitDateTime: str = Field(
-        ...,
-        description="배송 시작(집하) 일시",
-        example="2025-10-01T23:46:00",
+        example="CP1001XXXXXXX",
     )
     deliveredDate: str = Field(
         ...,
-        description="배송 완료 일시",
+        description="배송 완료 일시 (ISO8601 문자열, 아직 완료 전이면 주문/결제 기준 시각)",
         example="2025-10-02T00:32:00",
-    )
-    refer: str = Field(
-        ...,
-        description="주문 채널 정보 (예: 안드로이드앱, 아이폰앱 등)",
-        example="안드로이드앱",
-    )
-    shipmentType: str = Field(
-        ...,
-        description="배송 타입 (예: CGF LITE)",
-        example="CGF LITE",
     )
 
 
@@ -598,44 +408,31 @@ class CoupangOrdersResponse(BaseModel):
                         "shipmentBoxId": 220251001239327,
                         "orderId": 220251001239327,
                         "orderedAt": "2025-10-01T23:46:00",
-                        "orderer": {
-                            "name": "김철수",
-                            "email": "mock9020@example.com",
-                            "safeNumber": "010-3061-6823",
-                            "ordererNumber": "",
-                        },
                         "paidAt": "2025-10-02T00:32:00",
                         "status": "ACCEPT",
                         "shippingPrice": {
                             "currencyCode": "KRW",
-                            "units": 0,
+                            "units": 3000,
                             "nanos": 0,
                         },
-                        "remotePrice": {
-                            "currencyCode": "KRW",
-                            "units": 0,
-                            "nanos": 0,
+                        "orderer": {
+                            "name": "김철수",
+                            "email": "mock9020@example.com",
+                            "safeNumber": "010-3061-6823",
                         },
-                        "remoteArea": False,
-                        "parcelPrintMessage": "빠른 배송 부탁드려요.",
-                        "splitShipping": False,
-                        "ableSplitShipping": False,
                         "receiver": {
                             "name": "배송수령인",
                             "safeNumber": "010-4702-3473",
-                            "receiverNumber": "",
                             "addr1": "서울특별시 테스트구 테스트로 123",
                             "addr2": "테스트아파트 101동 1001호",
                             "postCode": "87455",
                         },
                         "orderItems": [
                             {
-                                "vendorItemPackageId": 0,
-                                "vendorItemPackageName": "팔랑샵",
-                                "productId": 0,
                                 "vendorItemId": 9339,
                                 "vendorItemName": "팔랑샵",
-                                "shippingCount": 3,
+                                "externalVendorSkuCode": "SHOP-CO-023",
+                                "quantity": 3,
                                 "salesPrice": {
                                     "currencyCode": "KRW",
                                     "units": 7900,
@@ -643,7 +440,7 @@ class CoupangOrdersResponse(BaseModel):
                                 },
                                 "orderPrice": {
                                     "currencyCode": "KRW",
-                                    "units": 23800,
+                                    "units": 23700,
                                     "nanos": 0,
                                 },
                                 "discountPrice": {
@@ -651,53 +448,11 @@ class CoupangOrdersResponse(BaseModel):
                                     "units": 0,
                                     "nanos": 0,
                                 },
-                                "instantCouponDiscount": {
-                                    "currencyCode": "KRW",
-                                    "units": 0,
-                                    "nanos": 0,
-                                },
-                                "downloadableCouponDiscount": {
-                                    "currencyCode": "KRW",
-                                    "units": 0,
-                                    "nanos": 0,
-                                },
-                                "coupangDiscount": {
-                                    "currencyCode": "KRW",
-                                    "units": 0,
-                                    "nanos": 0,
-                                },
-                                "externalVendorSkuCode": "SHOP-CO-023",
-                                "etcInfoHeader": "",
-                                "etcInfoValue": "",
-                                "etcInfoValues": [],
-                                "sellerProductId": 0,
-                                "sellerProductName": "팔랑샵",
-                                "sellerProductItemName": "팔랑샵",
-                                "firstSellerProductItemName": "팔랑샵",
-                                "cancelCount": 0,
-                                "holdCountForCancel": 0,
-                                "estimatedShippingDate": "2025-10-01",
-                                "plannedShippingDate": "",
-                                "invoiceNumberUploadDate": "",
-                                "extraProperties": {},
-                                "pricingBadge": False,
-                                "usedProduct": False,
-                                "confirmDate": "2025-10-02T00:32:00",
-                                "deliveryChargeTypeName": "무료",
-                                "canceled": False,
                             }
                         ],
-                        "overseaShippingInfoDto": {
-                            "personalCustomsClearanceCode": "",
-                            "ordererSsn": "",
-                            "ordererPhoneNumber": "",
-                        },
-                        "deliveryCompanyName": "",
-                        "invoiceNumber": "",
-                        "inTrasitDateTime": "2025-10-01T23:46:00",
+                        "deliveryCompanyName": "쿠팡로지스틱스",
+                        "invoiceNumber": "CP1001XXXXXXX",
                         "deliveredDate": "2025-10-02T00:32:00",
-                        "refer": "안드로이드앱",
-                        "shipmentType": "CGF LITE",
                     }
                 ],
             }
@@ -784,14 +539,13 @@ class ZigzagResultItem(BaseModel):
     status: str = Field(
         ...,
         description=(
-            "지그재그 주문/배송 상태 (원본값)\n"
-            "- 공통 정규화 상태: PAID / PREPARING_SHIPMENT / SHIPPED / DELIVERED / CANCELLED\n"
-            "- Zigzag 원본 상태값 목록:\n"
-            "  - PAY_COMPLETE (PAID)\n"
-            "  - DELIVERY_READY (PREPARING_SHIPMENT)\n"
-            "  - DELIVERY_IN_PROGRESS (SHIPPED)\n"
-            "  - DELIVERY_COMPLETED (DELIVERED)\n"
-            "  - ORDER_CANCEL (CANCELLED)"
+            "지그재그 주문/배송 상태 원본값\n"
+            "- 사용 가능한 값 예시:\n"
+            "  - PAY_COMPLETE: 결제완료\n"
+            "  - DELIVERY_READY: 배송준비중\n"
+            "  - DELIVERY_IN_PROGRESS: 배송중\n"
+            "  - DELIVERY_COMPLETED: 배송완료\n"
+            "  - ORDER_CANCEL: 주문취소"
         ),
         example="DELIVERY_COMPLETED",
     )
@@ -893,14 +647,13 @@ class AblyOrderItem(BaseModel):
     status: str = Field(
         ...,
         description=(
-            "에이블리 주문 상태 (원본값)\n"
-            "- 공통 정규화 상태: PAID / PREPARING_SHIPMENT / SHIPPED / DELIVERED / CANCELLED\n"
-            "- Ably 원본 상태값 목록:\n"
-            "  - 결제완료 (PAID)\n"
-            "  - 배송준비중 (PREPARING_SHIPMENT)\n"
-            "  - 배송중 (SHIPPED)\n"
-            "  - 배송완료 (DELIVERED)\n"
-            "  - 취소완료 (CANCELLED)"
+            "에이블리 주문 상태 원본값\n"
+            "- 사용 가능한 값 예시:\n"
+            "  - 결제완료\n"
+            "  - 배송준비중\n"
+            "  - 배송중\n"
+            "  - 배송완료\n"
+            "  - 취소완료"
         ),
         example="배송완료",
     )

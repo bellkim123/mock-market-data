@@ -64,15 +64,18 @@ def to_smartstore_response(orders: List[MockMarketOrder]) -> dict:
     }
 
 
-# ========== COUPANG MOCK ==========
+# ========== COUPANG MOCK (라이트 버전) ==========
 
 
 def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
     """
-    쿠팡 발주서 조회 응답 구조 기반 mock
-    - 상태값: status_raw 그대로 사용
-    - Money 타입: _krw()로 통일
-    - 나머지 보조 필드: 기본값/더미값 가급적 채워서 반환
+    쿠팡 발주서 조회 응답 구조 기반 mock (라이트 버전)
+
+    ETL에 필요한 핵심 필드만 남기고 최대한 단순화:
+    - 상단: shipmentBoxId, orderId, orderedAt, paidAt, status, shippingPrice
+    - 주문자/수령인: 이름, 연락처, 주소 정도만
+    - orderItems: 상품 식별자 + 금액(Money) + 수량
+    - 배송정보: deliveryCompanyName, invoiceNumber, deliveredDate
     """
     data: List[dict] = []
 
@@ -84,81 +87,54 @@ def to_coupang_response(orders: List[MockMarketOrder]) -> dict:
             return int(v) if v.isdigit() else None
 
         shipment = {
+            # ===== 상단 기본 정보 =====
             "shipmentBoxId": _to_int_or_none(o.external_order_id) or int(
                 o.mock_order_item_id
             ),
             "orderId": _to_int_or_none(o.external_order_id),
             "orderedAt": o.order_datetime.isoformat(),
+            "paidAt": (o.pay_datetime or o.order_datetime).isoformat(),
+            # 상태값: 쿠팡 원본 상태 그대로
+            # - ACCEPT / INSTRUCT / IN_DELIVERY / FINAL_DELIVERY / CANCELED
+            "status": o.status_raw,
+
+            # ===== 배송비 =====
+            "shippingPrice": _krw(o.shipping_fee or 0),
+
+            # ===== 주문자 정보 =====
             "orderer": {
                 "name": o.buyer_name or "",
                 "email": o.buyer_email or "",
                 "safeNumber": o.buyer_tel or "",
-                "ordererNumber": "",
             },
-            "paidAt": (o.pay_datetime or o.order_datetime).isoformat(),
-            "status": o.status_raw,
-            "shippingPrice": _krw(o.shipping_fee or 0),
-            "remotePrice": _krw(0),
-            "remoteArea": False,
-            "parcelPrintMessage": o.memo or "",
-            "splitShipping": False,
-            "ableSplitShipping": False,
+
+            # ===== 수령인 정보 =====
             "receiver": {
                 "name": (o.receiver_name or o.buyer_name) or "",
                 "safeNumber": o.receiver_tel or "",
-                "receiverNumber": "",
                 "addr1": o.receiver_address1 or "",
                 "addr2": o.receiver_address2 or "",
                 "postCode": o.receiver_zipcode or "",
             },
+
+            # ===== 주문 상품 리스트 (핵심 필드만) =====
             "orderItems": [
                 {
-                    "vendorItemPackageId": 0,
-                    "vendorItemPackageName": o.shop_name or "",
-                    "productId": 0,  # 별도 productId 없음 → 0
                     "vendorItemId": int(o.mock_order_item_id),
                     "vendorItemName": o.shop_name or "",
-                    "shippingCount": o.quantity,
+                    "externalVendorSkuCode": o.shop_id or "",
+                    "quantity": o.quantity,
                     "salesPrice": _krw(o.product_amount or 0),
                     "orderPrice": _krw(o.total_payment_amount or 0),
                     "discountPrice": _krw(o.discount_amount or 0),
-                    "instantCouponDiscount": _krw(0),
-                    "downloadableCouponDiscount": _krw(0),
-                    "coupangDiscount": _krw(0),
-                    "externalVendorSkuCode": o.shop_id or "",
-                    "etcInfoHeader": "",
-                    "etcInfoValue": "",
-                    "etcInfoValues": [],
-                    "sellerProductId": 0,
-                    "sellerProductName": o.shop_name or "",
-                    "sellerProductItemName": o.shop_name or "",
-                    "firstSellerProductItemName": o.shop_name or "",
-                    "cancelCount": 0,
-                    "holdCountForCancel": 0,
-                    "estimatedShippingDate": o.order_datetime.date().isoformat(),
-                    "plannedShippingDate": "",
-                    "invoiceNumberUploadDate": "",
-                    "extraProperties": {},
-                    "pricingBadge": False,
-                    "usedProduct": False,
-                    "confirmDate": (o.pay_datetime or o.order_datetime).isoformat(),
-                    "deliveryChargeTypeName": (
-                        "유료" if (o.shipping_fee or 0) > 0 else "무료"
-                    ),
-                    "canceled": False,
                 }
             ],
-            "overseaShippingInfoDto": {
-                "personalCustomsClearanceCode": "",
-                "ordererSsn": "",
-                "ordererPhoneNumber": "",
-            },
+
+            # ===== 배송사/송장 정보 =====
+            # - 쿠팡 로지스틱스 (CPLG) / CJ대한통운 (CJP) 등은 generator 기준 설명을 Swagger에서 제공
             "deliveryCompanyName": o.delivery_company or "",
             "invoiceNumber": o.tracking_number or "",
-            "inTrasitDateTime": o.order_datetime.isoformat(),
             "deliveredDate": (o.pay_datetime or o.order_datetime).isoformat(),
-            "refer": "안드로이드앱",
-            "shipmentType": "CGF LITE",
         }
 
         data.append(shipment)

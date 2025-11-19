@@ -1,6 +1,4 @@
-﻿# App/mock_data_generator.py
-
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import random
@@ -9,7 +7,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from .models import MockMarketOrder, Platform
+from .models import MockMarketOrder, MockApiClient, Platform
 
 # ===== 공통 정규화 상태 플로우 =====
 # - 초기 Insert: PAID / PREPARING_SHIPMENT / SHIPPED / DELIVERED / CANCELLED 중 하나
@@ -83,8 +81,9 @@ MEMOS = [
     "빠른 배송 부탁드려요.",
 ]
 
+# 기존 MIN/MAX는 더 이상 사용하지 않고, 실제 mock_api_clients 기준으로 셀러를 고릅니다.
 MIN_SELLER_ID = 1
-MAX_SELLER_ID = 100  # mock_api_clients.seller_id 범위와 맞춰 사용
+MAX_SELLER_ID = 100  # 참고용
 
 
 def _round_to_100(value: int) -> int:
@@ -253,24 +252,30 @@ def _create_mock_order(
     discount_candidates.append(_round_to_100(ten_percent))
     discount_amount = random.choice(discount_candidates)
 
+    # === 결제수단 선택 ===
+    pay_method = random.choice(PAY_METHODS)
+
     # 총 결제금액: 항상 100원 단위가 되도록 구성된 값들끼리 계산
     total_payment_amount = product_amount * quantity + shipping_fee - discount_amount
 
+    # === 결제 일시 ===
     pay_datetime = None
     if status_normalized in ("PAID", "PREPARING_SHIPMENT", "SHIPPED", "DELIVERED"):
-        # 주문 0~120분 사이에 결제된 것으로
-        pay_datetime = order_datetime + timedelta(
-            minutes=random.randint(0, 120)
-        )
+        # 무통장입금은 실제처럼 주문 후 꽤 나중에 결제될 수 있도록 (10분~1일)
+        if pay_method == "무통장입금":
+            minutes_gap = random.randint(10, 1440)  # 10분 ~ 24시간
+        else:
+            # 카드/간편결제는 주문 직후 바로 결제 (0~5분)
+            minutes_gap = random.randint(0, 5)
+
+        pay_datetime = order_datetime + timedelta(minutes=minutes_gap)
 
     # 플랫폼별 택배사/코드, 아직 출고 전이면 비워둘 수도 있음
     delivery_company = None
     delivery_company_code = None
     tracking_number = None
     if status_normalized in ("SHIPPED", "DELIVERED"):
-        delivery_company, delivery_company_code = _choose_delivery_company(
-            platform
-        )
+        delivery_company, delivery_company_code = _choose_delivery_company(platform)
         tracking_number = _generate_tracking_number(
             platform, order_datetime, global_seq
         )
@@ -292,7 +297,7 @@ def _create_mock_order(
         "shipping_fee": shipping_fee,
         "discount_amount": discount_amount,
         "total_payment_amount": total_payment_amount,
-        "pay_method": random.choice(PAY_METHODS),
+        "pay_method": pay_method,
         "currency": "KRW",
         "shop_id": f"SHOP-{platform.value[:2]}-{random.randint(1, 50):03d}",
         "shop_name": shop_name,
@@ -354,6 +359,31 @@ def _create_mock_order(
     return order
 
 
+def _build_platform_seller_map(db: Session) -> dict[Platform, List[int]]:
+    """
+    mock_api_clients 기준으로 플랫폼별 셀러 목록을 미리 만들어 둡니다.
+    - 한 셀러는 한 플랫폼만 가지는 구조(UNIQUE seller_id)라고 가정합니다.
+    """
+    rows = (
+        db.query(MockApiClient.seller_id, MockApiClient.platform)
+        .filter(MockApiClient.is_active == 1)
+        .all()
+    )
+
+    platform_seller_map: dict[Platform, List[int]] = {}
+
+    for seller_id, platform_str in rows:
+        try:
+            platform = Platform(platform_str)
+        except ValueError:
+            # 잘못된 platform 문자열이면 스킵
+            continue
+
+        platform_seller_map.setdefault(platform, []).append(seller_id)
+
+    return platform_seller_map
+
+
 # ========================
 # 1) 초기 풀 구간 더미데이터 생성
 # ========================
@@ -365,14 +395,16 @@ def generate_initial_mock_data(
     seed: int | None = 42,
 ) -> int:
     """
-    10월 1일 ~ 11월 18일 사이 전체 구간에 대해
-    - 모든 플랫폼별로
+    start_date ~ end_date 사이 전체 구간에 대해
+    - 각 플랫폼별로
     - 시간 단위로
     - orders_per_hour_per_platform 개씩 주문 생성
-    - 각 주문은 seller_id (1~100) 중 랜덤 한 셀러에 귀속
+    - 각 주문은 해당 플랫폼의 mock_api_clients.seller_id 중 랜덤 셀러에 귀속
     """
     if seed is not None:
         random.seed(seed)
+
+    platform_seller_map = _build_platform_seller_map(db)
 
     start_dt = datetime.combine(start_date, time.min)
     end_dt = datetime.combine(end_date, time.max)
@@ -386,10 +418,15 @@ def generate_initial_mock_data(
     while current <= end_dt:
         # current 는 해당 "시간 단위"의 시작 (분/초는 랜덤으로 분산)
         for platform in platforms:
+            seller_candidates = platform_seller_map.get(platform) or []
+            if not seller_candidates:
+                # 해당 플랫폼에 활성 셀러가 없으면 스킵
+                continue
+
             for _ in range(orders_per_hour_per_platform):
                 minute_offset = random.randint(0, 59)
                 order_dt = current + timedelta(minutes=minute_offset)
-                seller_id = random.randint(MIN_SELLER_ID, MAX_SELLER_ID)
+                seller_id = random.choice(seller_candidates)
                 _create_mock_order(db, platform, order_dt, global_seq, seller_id)
                 global_seq += 1
                 inserted += 1
@@ -406,13 +443,15 @@ def generate_initial_mock_data(
 def generate_hourly_new_orders(
     db: Session,
     target_hour: datetime | None = None,
-    orders_per_platform: int = 3,
+    orders_per_platform: int = 5,
 ) -> int:
     """
     target_hour 기준 한 시간 구간에 대해, 각 플랫폼마다 orders_per_platform 개 생성
     - target_hour가 None이면 현재 시각의 "해당 시간"으로 처리
-    - 각 주문은 seller_id (1~100) 중 랜덤 한 셀러에 귀속
+    - 각 주문은 해당 플랫폼의 mock_api_clients.seller_id 중 랜덤 셀러에 귀속
     """
+    platform_seller_map = _build_platform_seller_map(db)
+
     if target_hour is None:
         now = datetime.now()
         target_hour = now.replace(minute=0, second=0, microsecond=0)
@@ -424,10 +463,14 @@ def generate_hourly_new_orders(
     platforms = [Platform.SMARTSTORE, Platform.COUPANG, Platform.ZIGZAG, Platform.ABLY]
 
     for platform in platforms:
+        seller_candidates = platform_seller_map.get(platform) or []
+        if not seller_candidates:
+            continue
+
         for _ in range(orders_per_platform):
             minute_offset = random.randint(0, 59)
             order_dt = start_dt + timedelta(minutes=minute_offset)
-            seller_id = random.randint(MIN_SELLER_ID, MAX_SELLER_ID)
+            seller_id = random.choice(seller_candidates)
             _create_mock_order(db, platform, order_dt, global_seq, seller_id)
             global_seq += 1
             inserted += 1
@@ -530,11 +573,14 @@ if __name__ == "__main__":
                 db,
                 start_date=date(2025, 10, 1),
                 end_date=date(2025, 11, 18),
-                orders_per_hour_per_platform=3,
+                orders_per_hour_per_platform=10,  # 🎯 데이터 양 늘리고 싶으면 이 숫자 조정
             )
             print(f"Inserted {count} mock orders (initial).")
         elif args.mode == "hourly-insert":
-            count = generate_hourly_new_orders(db)
+            count = generate_hourly_new_orders(
+                db,
+                orders_per_platform=5,  # 시간당 플랫폼별 신규 주문 수
+            )
             print(f"Inserted {count} mock orders for the last hour.")
         elif args.mode == "hourly-update":
             updated = progress_order_statuses(db)
